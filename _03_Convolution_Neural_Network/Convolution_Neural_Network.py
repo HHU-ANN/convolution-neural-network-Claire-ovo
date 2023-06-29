@@ -10,84 +10,63 @@ import torch
 import torch.nn as nn
 import torchvision
 from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR10
-from torchvision.transforms import transforms
 
 
-# 定义神经网络
-class NeuralNetwork(nn.Module):
-    def __init__(self):
-        super(NeuralNetwork, self).__init__()
-        self.conv1 = nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2)
-        self.relu1 = nn.ReLU(inplace=True)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv2 = nn.Conv2d(64, 192, kernel_size=5, padding=2)
-        self.relu2 = nn.ReLU(inplace=True)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.conv3 = nn.Conv2d(192, 384, kernel_size=3, padding=1)
-        self.relu3 = nn.ReLU(inplace=True)
-        self.conv4 = nn.Conv2d(384, 256, kernel_size=3, padding=1)
-        self.relu4 = nn.ReLU(inplace=True)
-        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, padding=1)
-        self.relu5 = nn.ReLU(inplace=True)
-        self.maxpool3 = nn.MaxPool2d(kernel_size=3, stride=2)
-        self.fc1 = nn.Linear(256 * 6 * 6, 4096)
-        self.relu6 = nn.ReLU(inplace=True)
-        self.fc2 = nn.Linear(4096, 4096)
-        self.relu7 = nn.ReLU(inplace=True)
-        self.fc3 = nn.Linear(4096, 10)
+class ResBlock(torch.nn.Module):
+    def __init__(self, ch_in, ch_out, stride=1):
+        super(ResBlock, self).__init__()
+        self.conv1 = torch.nn.Conv2d(ch_in,ch_out,kernel_size=3,stride=stride,padding=1)
+        self.bn1 = torch.nn.BatchNorm2d(ch_out)
+        self.conv2 = torch.nn.Conv2d(ch_out,ch_out,kernel_size=3,stride=1,padding=1)
+        self.bn2 = torch.nn.BatchNorm2d(ch_out)
+
+        self.extra = torch.nn.Sequential()
+        if ch_in != ch_out:
+            # [b,ch_in,h,w] => [b,ch_out,h,w]
+            self.extra = torch.nn.Sequential(
+                torch.nn.Conv2d(ch_in,ch_out,kernel_size=1,stride=stride),
+                torch.nn.BatchNorm2d(ch_out)
+            )
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.relu1(x)
-        x = self.maxpool1(x)
-        x = self.conv2(x)
-        x = self.relu2(x)
-        x = self.maxpool2(x)
-        x = self.conv3(x)
-        x = self.relu3(x)
-        x = self.conv4(x)
-        x = self.relu4(x)
-        x = self.conv5(x)
-        x = self.relu5(x)
-        x = self.maxpool3(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc1(x)
-        x = self.relu6(x)
-        x = self.fc2(x)
-        x = self.relu7(x)
-        x = self.fc3(x)
+        y = F.relu(self.bn1(self.conv1(x)))
+        y = self.bn2(self.conv2(y))
+        # short cut
+        # extra module: [b,ch_in,h,w] => [b,ch_out,h,w]
+        y = self.extra(x) + y
+        return y
+
+class ResNet18(torch.nn.Module):
+    def __init__(self):
+        super(ResNet18, self).__init__()
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv2d(3,64,kernel_size=3,stride=3),
+            torch.nn.BatchNorm2d(64)
+        )
+        # 接4个blocks
+        # [b,64,h,w] => [b,128,h,w]
+        self.blk1 = ResBlock(64,128,stride=2)
+        # [b,128,h,w] => [b,256,h,w]
+        self.blk2 = ResBlock(128,256,stride=2)
+        # [b,256,h,w] => [b,512,h,w]
+        self.blk3 = ResBlock(256,512,stride=2)
+        # [b,512,h,w] => [b,1024,h,w]
+        self.blk4 = ResBlock(512,512,stride=2)
+
+        self.outlayer = torch.nn.Linear(512,10)
+    def forward(self,x):
+        x = F.relu(self.conv(x))
+        # [b,64,h,w] => [b,512,h,w]
+        x = self.blk1(x)
+        x = self.blk2(x)
+        x = self.blk3(x)
+        x = self.blk4(x)
+
+        # [b,512,h,w] => [b,512,1,1]
+        x = F.adaptive_avg_pool2d(x, [1, 1])
+        x = x.view(x.size(0),-1)
+        x = self.outlayer(x)
         return x
-# 数据预处理
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
-])
-# 加载CIFAR-10数据集
-train_dataset = CIFAR10(root='./data', train=True, transform=transform, download=True)
-train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=4)
-# 创建模型实例
-model = NeuralNetwork()
-# 定义损失函数和优化器
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-# 训练模型
-num_epochs = 10
-total_step = len(train_loader)
-for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
-        # 前向传播
-        outputs = model(images)
-        loss = criterion(outputs, labels)
-        # 反向传播和优化
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        # 打印训练信息
-        if (i + 1) % 100 == 0:
-            print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
-                  .format(epoch + 1, num_epochs, i + 1, total_step, loss.item()))
-# 保存模型参数
-torch.save(model.state_dict(), 'pth/model.pth')
+
 
 def read_data():
     # 这里可自行修改数据预处理，batch大小也可自行调整
