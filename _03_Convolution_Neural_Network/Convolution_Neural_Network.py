@@ -15,9 +15,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 
-# cuda
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
 
 # 定义神经网络
 class Net(nn.Module):  
@@ -71,7 +68,7 @@ class Net(nn.Module):
         x = self.dense(x)
         return x
 
-net = Net().to(device)
+
 
 def read_data():
     # 这里可自行修改数据预处理，batch大小也可自行调整
