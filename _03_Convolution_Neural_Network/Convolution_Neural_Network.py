@@ -12,7 +12,6 @@ import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
 import torch.optim as optim
-from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 
 
