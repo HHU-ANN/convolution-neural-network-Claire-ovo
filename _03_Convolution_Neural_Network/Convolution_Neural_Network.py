@@ -19,7 +19,7 @@ from torch.utils.data import DataLoader
 # 定义神经网络
 class Net(nn.Module):  
     '''
-    三层卷积，三层全连接  (应该是5层卷积，由于图片是 32 * 32，且为了效率，这里设成了 3 层)
+    三层卷积，三层全连接  
     '''
     def __init__(self):
         super(Net, self).__init__()
