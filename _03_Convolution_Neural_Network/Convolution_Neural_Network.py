@@ -15,6 +15,10 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 
+# cuda
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+
 # 定义神经网络
 class Net(nn.Module):  
     '''
@@ -67,7 +71,7 @@ class Net(nn.Module):
         x = self.dense(x)
         return x
 
-
+net = Net().to(device)
 
 def read_data():
     # 这里可自行修改数据预处理，batch大小也可自行调整
@@ -77,8 +81,8 @@ def read_data():
                                                  transform=torchvision.transforms.ToTensor())
     dataset_val = torchvision.datasets.CIFAR10(root='../data/exp03', train=False, download=False,
                                                transform=torchvision.transforms.ToTensor())
-    data_loader_train = DataLoader(dataset=dataset_train, batch_size=256, shuffle=True)
-    data_loader_val = DataLoader(dataset=dataset_val, batch_size=256, shuffle=False)
+    data_loader_train = DataLoader(dataset=dataset_train, batch_size=128, shuffle=True)
+    data_loader_val = DataLoader(dataset=dataset_val, batch_size=128, shuffle=False)
     return dataset_train, dataset_val, data_loader_train, data_loader_val
 
 
